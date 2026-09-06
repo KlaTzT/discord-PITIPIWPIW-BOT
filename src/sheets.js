@@ -89,8 +89,7 @@ async function appendRow(tabName, header, row, highlight = false) {
   await highlightRow(sheetId, rowIndex, header.length);
 }
 
-// เหมือน appendRow แต่ส่งหลายแถวในคำขอเดียว (1 append + 1 batchUpdate ไฮไลท์ ไม่ว่าจะกี่แถว)
-// ใช้เวลามีคนเยอะๆ พร้อมกัน (เช่นวอร์ 200 คน) กันยิง API ทีละคนจนช้า/โดน rate limit
+// เหมือน appendRow แต่ส่งหลายแถวในคำขอเดียว
 async function appendRows(tabName, header, rows, highlightFlags = []) {
   if (rows.length === 0) return;
   const sheets = getClient();
@@ -181,8 +180,7 @@ async function upsertRowByKeys(tabName, header, matches, row) {
   await writeRow(tabName, header, foundIndex, row);
 }
 
-// เหมือน upsertRowByKeys แต่ทำหลายคนในคำขอเดียว (1 อ่าน + สูงสุด 1 batchUpdate + 1 append รวม ไม่ว่าจะกี่คน)
-// items: [{ matches: [[colIndex, value], ...], row: [...] }, ...]
+// เหมือน upsertRowByKeys แต่ทำหลายคนในคำขอเดียว items: [{ matches: [[col, value]], row }]
 async function upsertRowsByKeys(tabName, header, items) {
   if (items.length === 0) return;
   const sheets = getClient();
@@ -224,11 +222,11 @@ async function upsertRowsByKeys(tabName, header, items) {
   }
 }
 
-// หาแถวที่ตรง matchValue แล้วลบแถวนั้นทิ้งทั้งแถว ไม่เจอก็ไม่ทำอะไร
-async function deleteRowByValue(tabName, header, matchColIndex, matchValue) {
+// หาแถวที่ตรงทุกคู่ใน matches แล้วลบแถวนั้นทิ้งทั้งแถว ไม่เจอก็ไม่ทำอะไร
+async function deleteRowByKeys(tabName, header, matches) {
   const sheets = getClient();
   const sheetId = await ensureTab(tabName, header);
-  const foundIndex = await findRowIndex(tabName, [[matchColIndex, matchValue]]);
+  const foundIndex = await findRowIndex(tabName, matches);
   if (foundIndex === -1) return false;
 
   const rowIndex = foundIndex + 1; // +1 เพราะ A2 คือ grid index 1 (index 0 คือแถว header)
@@ -243,6 +241,10 @@ async function deleteRowByValue(tabName, header, matchColIndex, matchValue) {
   return true;
 }
 
+async function deleteRowByValue(tabName, header, matchColIndex, matchValue) {
+  return deleteRowByKeys(tabName, header, [[matchColIndex, matchValue]]);
+}
+
 module.exports = {
   appendRow,
   appendRows,
@@ -250,5 +252,6 @@ module.exports = {
   upsertRowByKeys,
   upsertRowsByKeys,
   deleteRowByValue,
+  deleteRowByKeys,
   ensureTab,
 };

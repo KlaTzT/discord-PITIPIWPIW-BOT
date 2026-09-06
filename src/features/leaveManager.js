@@ -2,32 +2,30 @@ const storage = require('../storage');
 const time = require('../time');
 const { LEAVE_RULES } = require('../config');
 
-// data/leaves.json
-// { [discordUserId]: { [yyyy-mm]: { history: [{warDate, notifiedAt, late}], absenceWarnings } } }
-// count/warnings/redCard ไม่เก็บเป็นฟิลด์แยก คำนวณจาก history+absenceWarnings ทุกครั้งที่อ่าน (deriveStatus)
-// กันปัญหาข้อมูลไม่ตรงกันเวลามีการยกเลิกใบลาย้อนหลัง
+// data/leaves.json: { [discordUserId]: { [yyyy-mm]: { history: [...], absenceWarnings } } }
+// count/warnings/redCard คำนวณจาก history ทุกครั้งที่อ่าน ไม่เก็บซ้ำ (deriveStatus)
 function all() {
   return storage.load('leaves', {});
 }
 
 function rawRecord(map, userId, mKey) {
   if (!map[userId]) map[userId] = {};
-  if (!map[userId][mKey]) map[userId][mKey] = { history: [], absenceWarnings: 0 };
+  if (!map[userId][mKey]) map[userId][mKey] = { history: [], absenceWarnings: 0, manualWarnings: 0, manualRedCard: false };
   return map[userId][mKey];
 }
 
 function deriveStatus(raw) {
   const count = raw.history.length;
   const lateCount = raw.history.filter((h) => h.late).length;
-  const warnings = lateCount + (raw.absenceWarnings || 0);
+  const warnings = lateCount + (raw.absenceWarnings || 0) + (raw.manualWarnings || 0);
   const overQuota = count > LEAVE_RULES.MAX_LEAVES_PER_MONTH;
-  const redCard = overQuota || warnings >= LEAVE_RULES.WARNINGS_TO_RED_CARD;
+  const redCard = overQuota || warnings >= LEAVE_RULES.WARNINGS_TO_RED_CARD || Boolean(raw.manualRedCard);
   return { count, warnings, redCard, overQuota, history: raw.history };
 }
 
 function getStatus(userId, monthKey) {
   const map = all();
-  const raw = (map[userId] && map[userId][monthKey]) || { history: [], absenceWarnings: 0 };
+  const raw = (map[userId] && map[userId][monthKey]) || { history: [], absenceWarnings: 0, manualWarnings: 0, manualRedCard: false };
   return deriveStatus(raw);
 }
 
@@ -106,6 +104,49 @@ function addAbsenceWarning(userId, monthKey) {
   return { warnings: after.warnings, redCard: after.redCard, newlyRedCarded: after.redCard && !before.redCard };
 }
 
+// ยกเลิกใบเตือนที่มาจากขาดครบโควตา (ใช้ตอนแอดมินยกเลิกการนับขาดที่ทำให้ครบโควตานั้น)
+function removeAbsenceWarning(userId, monthKey) {
+  const map = all();
+  const raw = map[userId] && map[userId][monthKey];
+  if (!raw || !raw.absenceWarnings) return { revoked: false };
+
+  raw.absenceWarnings -= 1;
+  storage.save('leaves', map);
+  return { revoked: true, status: deriveStatus(raw) };
+}
+
+// [แอดมิน] ให้ใบเตือนตรงๆ ผ่าน /ให้ใบ ไม่ผูกกับการลา/ขาด
+function addManualWarning(userId, monthKey) {
+  const map = all();
+  const raw = rawRecord(map, userId, monthKey);
+  const before = deriveStatus(raw);
+
+  raw.manualWarnings = (raw.manualWarnings || 0) + 1;
+  storage.save('leaves', map);
+
+  const after = deriveStatus(raw);
+  return { warnings: after.warnings, redCard: after.redCard, newlyRedCarded: after.redCard && !before.redCard };
+}
+
+// [แอดมิน] ให้ใบแดงตรงๆ ผ่าน /ให้ใบ ข้ามเงื่อนไขใบเตือนสะสม
+function giveManualRedCard(userId, monthKey) {
+  const map = all();
+  const raw = rawRecord(map, userId, monthKey);
+  raw.manualRedCard = true;
+  storage.save('leaves', map);
+  return deriveStatus(raw);
+}
+
+// [แอดมิน] ล้างใบที่เคยให้ด้วยมือ (ไม่กระทบใบเตือน/ใบแดงที่มาจากลาสาย/ขาด/เกินโควตา)
+function clearManualCards(userId, monthKey) {
+  const map = all();
+  const raw = rawRecord(map, userId, monthKey);
+  raw.manualWarnings = 0;
+  raw.manualRedCard = false;
+  storage.save('leaves', map);
+  return deriveStatus(raw);
+}
+
 module.exports = {
   recordLeave,
   cancelLeave,
@@ -115,4 +156,8 @@ module.exports = {
   monthKeyOf,
   hasApprovedLeaveFor,
   addAbsenceWarning,
+  removeAbsenceWarning,
+  addManualWarning,
+  giveManualRedCard,
+  clearManualCards,
 };

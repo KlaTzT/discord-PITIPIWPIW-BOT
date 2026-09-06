@@ -10,7 +10,6 @@ const TALK_CRAZY = '1543892475758911508'; // พูดคุยประสา�
 const WAR_DAYS = [2, 4]; // อังคาร, พฤหัสบดี (ใช้กับการเช็คห้องซ้อมเท่านั้น)
 const LEAVE_DAYS = [2, 4, 0]; // ลำดับที่โชว์ในปุ่มลา: อังคาร, พฤหัสบดี, อาทิตย์
 
-// เก็บแค่ตารางเวลา/ห้อง/เกณฑ์ของแต่ละ session ดิบๆ ส่วนจะเขียนชีตที่ไหนยังไงกำหนดที่ CHECKS แทน
 const SESSIONS = [
   {
     key: 'practice_main',
@@ -73,10 +72,7 @@ for (const s of SESSIONS) {
   }
 }
 
-// รวมสนามหลัก+รองเป็น "วอร์" เดียวต่อวัน (เข้าห้องไหนครบเกณฑ์ก็นับว่ามา) ใช้ตอนเช็ค/แจ้ง DM/สรุปชีต
-// เขียนชีตแยกแท็บตามห้อง (วอร์ปาร์ตี้หลัก/รอง) ตามที่ระบุใน SESSIONS[x].sheetTab
-// เช็คอื่นๆ ทุกตัวเป็น session เดี่ยว เขียนชีตของตัวเองตรงๆ ไม่มีการรวม/พักผลข้ามช่วงเวลาแล้ว
-// countsTowardWar: มีผลกับคอลัมน์ "มาวอร์"/"ขาด (รอบ)" ในแท็บสรุป (กิจกรรมกิลด์/ตีบอสกิลด์ ไม่นับเป็นวอร์)
+// countsTowardWar คุมคอลัมน์ "มาวอร์"/"ขาด (รอบ)" ในแท็บสรุป
 const CHECKS = [
   { key: 'war', label: 'วอร์', sessionKeys: ['practice_main', 'practice_sub'], countsTowardWar: true },
   { key: 'thu_guild', label: 'กิจกรรมกิลด์', sessionKeys: ['thu_talk'], countsTowardWar: false },
@@ -84,7 +80,6 @@ const CHECKS = [
   { key: 'sun_war', label: 'วอร์วันอาทิตย์', sessionKeys: ['sun_crazy'], countsTowardWar: true },
 ];
 
-// session ในกลุ่มเดียวกันมีตารางตรงกันเสมอ (ยกเว้น war ที่ 2 session เวลาเดียวกันอยู่แล้ว) ใช้ตัวแรกเป็นตารางของ check
 for (const c of CHECKS) {
   const s = SESSIONS.find((s) => s.key === c.sessionKeys[0]);
   c.days = s.days;
@@ -92,7 +87,6 @@ for (const c of CHECKS) {
   c.endTime = s.endTime;
 }
 
-// ใช้กับปุ่มทดสอบเท่านั้น (ให้เลือกตามวันจริงที่คนคุ้นเคย) วันพฤหัส/อาทิตย์มี 2 check ต้องทดสอบพร้อมกัน
 const TEST_DAYS = [
   { key: 'tuesday', label: 'วันอังคาร (วอร์)', checkKeys: ['war'] },
   { key: 'thursday', label: 'วันพฤหัสบดี (วอร์ + กิจกรรมกิลด์)', checkKeys: ['war', 'thu_guild'] },

@@ -24,8 +24,9 @@ const WARNING_LOG_HEADER = ['Discord', 'ตัวละคร', 'เหตุ', 
 function getRecord(all, userId, monthKey) {
   if (!all[userId]) all[userId] = {};
   if (!all[userId][monthKey]) {
-    all[userId][monthKey] = { warAttended: 0, warAbsent: 0, totalAbsent: 0, voiceMinutes: 0 };
+    all[userId][monthKey] = { warAttended: 0, warAbsent: 0, totalAbsent: 0, voiceMinutes: 0, absences: [] };
   }
+  if (!all[userId][monthKey].absences) all[userId][monthKey].absences = [];
   return all[userId][monthKey];
 }
 
@@ -39,13 +40,12 @@ function buildSummaryRow(discordTag, gameName, monthKey, record, leave) {
     String(record.warAbsent),
     String(leave.count),
     String(leave.warnings),
-    record.voiceMinutes.toFixed(1),
+    String(Math.round(record.voiceMinutes)),
     String(record.totalAbsent),
     status,
   ];
 }
 
-// ใช้ตอนมีคนเดียว (เช่นหลังกดปุ่มลา/ยกเลิกลา) ไม่ต้อง batch เพราะเป็นแค่คนเดียว
 async function upsertSummaryRow(userId, monthKey, guild) {
   const gameName = bindings.getNameByUserId(userId);
   if (!gameName) return;
@@ -61,6 +61,78 @@ async function upsertSummaryRow(userId, monthKey, guild) {
   } catch (err) {
     console.error('[attendanceTracker] เขียนชีตสรุปล้มเหลว:', err.message);
   }
+}
+
+// รายการขาดทั้งหมดของคนคนนี้ (ทุกเดือนที่มีข้อมูล) เรียงวันที่ล่าสุดก่อน ไว้ให้แอดมินเลือกยกเลิก
+function getAbsences(userId) {
+  const all = storage.load('attendance', {});
+  const userRecord = all[userId] || {};
+  const results = [];
+  for (const [monthKey, record] of Object.entries(userRecord)) {
+    (record.absences || []).forEach((a, index) => results.push({ monthKey, index, ...a }));
+  }
+  return results.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+// ยกเลิกขาด 1 รายการ (ระบุ index ใน absences ของเดือนนั้น) แล้วปรับตัวนับ + คืนใบเตือนขาดถ้าหลุดโควตาแล้ว
+function cancelAbsence(userId, monthKey, index) {
+  const all = storage.load('attendance', {});
+  const record = all[userId] && all[userId][monthKey];
+  if (!record || !record.absences || !record.absences[index]) return { ok: false, reason: 'NOT_FOUND' };
+
+  const [removed] = record.absences.splice(index, 1);
+  record.totalAbsent = Math.max(0, record.totalAbsent - 1);
+  if (removed.countsTowardWar) record.warAbsent = Math.max(0, record.warAbsent - 1);
+  storage.save('attendance', all);
+
+  let warningRevoked = false;
+  if (record.totalAbsent < ABSENCE_WARNING_THRESHOLD) {
+    warningRevoked = leaveManager.removeAbsenceWarning(userId, monthKey).revoked;
+  }
+
+  return { ok: true, removed, warningRevoked };
+}
+
+// ยกเลิกขาดของ "ทุกคน" ในวันที่ระบุ (ใช้เมื่อวันนั้นไม่มีวอร์จริง หรือลืมย้ายห้องกันทั้งกิลด์)
+function cancelAllAbsencesForDate(dateStr) {
+  const all = storage.load('attendance', {});
+  const monthKey = dateStr.slice(0, 7);
+  const touched = [];
+
+  for (const [userId, months] of Object.entries(all)) {
+    const record = months[monthKey];
+    if (!record || !record.absences || record.absences.length === 0) continue;
+
+    const removed = record.absences.filter((a) => a.date === dateStr);
+    if (removed.length === 0) continue;
+
+    record.absences = record.absences.filter((a) => a.date !== dateStr);
+    record.totalAbsent = Math.max(0, record.totalAbsent - removed.length);
+    const warRemoved = removed.filter((a) => a.countsTowardWar).length;
+    if (warRemoved > 0) record.warAbsent = Math.max(0, record.warAbsent - warRemoved);
+
+    touched.push({ userId, monthKey, removedCount: removed.length });
+  }
+  storage.save('attendance', all);
+
+  return touched.map(({ userId, monthKey, removedCount }) => {
+    const record = all[userId][monthKey];
+    const warningRevoked =
+      record.totalAbsent < ABSENCE_WARNING_THRESHOLD ? leaveManager.removeAbsenceWarning(userId, monthKey).revoked : false;
+    return { userId, monthKey, removedCount, warningRevoked };
+  });
+}
+
+// วันที่ยังมีข้อมูลขาดค้างอยู่ (อย่างน้อย 1 คน) ไว้โชว์ให้เลือกใน /ยกเลิกขาดทั้งหมด
+function listDatesWithAbsences() {
+  const all = storage.load('attendance', {});
+  const dates = new Set();
+  for (const months of Object.values(all)) {
+    for (const record of Object.values(months)) {
+      for (const a of record.absences || []) dates.add(a.date);
+    }
+  }
+  return [...dates].sort((a, b) => b.localeCompare(a));
 }
 
 async function sendReportDM(client, title, attended, onLeave, partial, noShow) {
@@ -81,13 +153,7 @@ async function sendReportDM(client, title, attended, onLeave, partial, noShow) {
   }
 }
 
-/**
- * mergedResults: { [userId]: { minutes, attended } } รวมผลจากทุก sessionKey ในกลุ่ม check เดียวกันแล้ว
- * (attended = true ถ้า attended ในอย่างน้อยหนึ่ง session ของกลุ่ม)
- * ไม่มี entry ใน mergedResults เลย = ไม่เข้าห้องเลยสักวินาที ต่างจาก entry ที่มีแต่ attended=false (เข้าแต่ไม่ครบเวลา)
- *
- * เขียนชีตแบบ batch ทั้งหมด (สรุป + ใบเตือน) ไม่ว่าจะมีคนผูกไว้กี่ร้อยคน ก็ยิง API แค่ไม่กี่ครั้งจบ
- */
+// ไม่มี entry ใน mergedResults = ไม่เข้าห้องเลย ต่างจาก attended=false (เข้าแต่ไม่ครบเวลา)
 async function recordCheck(check, dateStr, mergedResults, guild, client) {
   const monthKey = dateStr.slice(0, 7);
   const all = storage.load('attendance', {});
@@ -117,13 +183,14 @@ async function recordCheck(check, dateStr, mergedResults, guild, client) {
     }
 
     if (result) {
-      partialNames.push(`${gameName} (${result.minutes.toFixed(1)} นาที)`);
+      partialNames.push(`${gameName} (${Math.round(result.minutes)} นาที)`);
     } else {
       noShowNames.push(gameName);
     }
 
     record.totalAbsent += 1;
     if (check.countsTowardWar) record.warAbsent += 1;
+    record.absences.push({ date: dateStr, checkKey: check.key, checkLabel: check.label, countsTowardWar: check.countsTowardWar });
 
     if (record.totalAbsent === ABSENCE_WARNING_THRESHOLD) {
       const warned = leaveManager.addAbsenceWarning(userId, monthKey);
@@ -174,4 +241,12 @@ async function recordCheck(check, dateStr, mergedResults, guild, client) {
   );
 }
 
-module.exports = { recordCheck, upsertSummaryRow, SUMMARY_HEADER };
+module.exports = {
+  recordCheck,
+  upsertSummaryRow,
+  getAbsences,
+  cancelAbsence,
+  cancelAllAbsencesForDate,
+  listDatesWithAbsences,
+  SUMMARY_HEADER,
+};

@@ -4,3 +4,4 @@ credentials/*.json
 data/*.json
 !data/.gitkeep
 npm-debug.log*
+README.md

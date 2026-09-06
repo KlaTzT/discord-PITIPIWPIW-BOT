@@ -15,7 +15,8 @@ function getNameByUserId(userId) {
 
 function getUserIdByName(name) {
   const map = all();
-  const entry = Object.entries(map).find(([, n]) => n === name);
+  const target = name.trim().toLowerCase();
+  const entry = Object.entries(map).find(([, n]) => n.trim().toLowerCase() === target);
   return entry ? entry[0] : null;
 }
 

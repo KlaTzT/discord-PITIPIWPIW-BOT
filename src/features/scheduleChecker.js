@@ -27,8 +27,6 @@ function mergeResults(target, results) {
   }
 }
 
-// เขียนชีตแยกแท็บตาม session ของตัวเอง (session ส่วนใหญ่มีแท็บเดียว 'war' มี 2 แท็บ)
-// รวมทุกคนในแท็บเดียวกันเป็น batch เดียว (1 append + 1 batchUpdate ไฮไลท์) ไม่ว่าจะกี่คน กันช้า/โดน rate limit ตอนคนเยอะ
 async function writeSheets(dateStr, sessionResultsList) {
   const merged = {};
   for (const { sessionKey, results } of sessionResultsList) {
@@ -36,7 +34,8 @@ async function writeSheets(dateStr, sessionResultsList) {
     if (session.sheetTab) {
       const rows = [];
       const highlightFlags = [];
-      for (const r of Object.values(results)) {
+      const sorted = Object.values(results).sort((a, b) => b.minutes - a.minutes);
+      for (const r of sorted) {
         const { row, belowMin } = voiceTracker.buildPracticeRow(dateStr, session.minMinutes, r);
         rows.push(row);
         highlightFlags.push(belowMin);

@@ -3,6 +3,7 @@ const commands = require('./commands');
 const voiceTracker = require('./features/voiceTracker');
 const scheduleChecker = require('./features/scheduleChecker');
 const leavePanel = require('./features/leavePanel');
+const absencePanel = require('./features/absencePanel');
 const sheetSetup = require('./features/sheetSetup');
 const { DISCORD_TOKEN, GUILD_ID } = require('./config');
 
@@ -63,6 +64,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
     if (interaction.isStringSelectMenu()) {
       if (await leavePanel.handleSelect(interaction)) return;
+      if (await absencePanel.handleSelect(interaction)) return;
     }
   } catch (err) {
     await replyError(interaction, err, interaction.commandName || interaction.customId || 'interaction');

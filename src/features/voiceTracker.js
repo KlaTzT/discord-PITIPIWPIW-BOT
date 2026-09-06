@@ -96,7 +96,6 @@ function startSession(sessionKey, guild) {
   saveAll(all);
 }
 
-// เช็ค cache ก่อนเสมอ (เต็มอยู่แล้วถ้า warmMemberCache ทำงานตอนบอทเริ่ม) กันยิง API ทีละคนตอนคนเยอะๆ
 async function resolveTag(guild, userId) {
   const cached = guild.members.cache.get(userId);
   if (cached) return cached.user.tag;
@@ -108,7 +107,6 @@ async function resolveTag(guild, userId) {
   }
 }
 
-// ดึงสมาชิกทั้งกิลด์มาเก็บ cache ไว้ล่วงหน้า เรียกครั้งเดียวตอนบอทพร้อมทำงาน
 async function warmMemberCache(guild) {
   try {
     await guild.members.fetch();
@@ -155,7 +153,6 @@ async function endSession(sessionKey, guild) {
   return { dateStr, results };
 }
 
-// สร้างแถวสไตล์ PRACTICE_HEADER แบบไม่ยิง I/O (ให้ผู้เรียกไปรวมหลายแถวแล้วเขียนเป็น batch เดียว)
 function buildPracticeRow(dateStr, minMinutes, merged) {
   const belowMin = merged.minutes < minMinutes;
   const row = [
@@ -164,7 +161,7 @@ function buildPracticeRow(dateStr, minMinutes, merged) {
     merged.discordTag,
     time.timeLabel(new Date(merged.firstJoin)),
     time.timeLabel(new Date(merged.lastLeave)),
-    merged.minutes.toFixed(1),
+    String(Math.round(merged.minutes)),
     String(merged.segments),
   ];
   return { row, belowMin };
