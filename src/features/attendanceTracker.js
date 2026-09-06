@@ -93,20 +93,21 @@ function cancelAbsence(userId, monthKey, index) {
   return { ok: true, removed, warningRevoked };
 }
 
-// ยกเลิกขาดของ "ทุกคน" ในวันที่ระบุ (ใช้เมื่อวันนั้นไม่มีวอร์จริง หรือลืมย้ายห้องกันทั้งกิลด์)
-function cancelAllAbsencesForDate(dateStr) {
+// ยกเลิกขาดของ "ทุกคน" ในวันที่ระบุ ระบุ checkKey ด้วยถ้าจะยกเลิกเฉพาะรอบนั้น (ไม่ระบุ = ยกเลิกทุกรอบของวันนั้น)
+function cancelAllAbsencesForDate(dateStr, checkKey = null) {
   const all = storage.load('attendance', {});
   const monthKey = dateStr.slice(0, 7);
   const touched = [];
+  const matches = (a) => a.date === dateStr && (!checkKey || a.checkKey === checkKey);
 
   for (const [userId, months] of Object.entries(all)) {
     const record = months[monthKey];
     if (!record || !record.absences || record.absences.length === 0) continue;
 
-    const removed = record.absences.filter((a) => a.date === dateStr);
+    const removed = record.absences.filter(matches);
     if (removed.length === 0) continue;
 
-    record.absences = record.absences.filter((a) => a.date !== dateStr);
+    record.absences = record.absences.filter((a) => !matches(a));
     record.totalAbsent = Math.max(0, record.totalAbsent - removed.length);
     const warRemoved = removed.filter((a) => a.countsTowardWar).length;
     if (warRemoved > 0) record.warAbsent = Math.max(0, record.warAbsent - warRemoved);
@@ -123,13 +124,15 @@ function cancelAllAbsencesForDate(dateStr) {
   });
 }
 
-// วันที่ยังมีข้อมูลขาดค้างอยู่ (อย่างน้อย 1 คน) ไว้โชว์ให้เลือกใน /ยกเลิกขาดทั้งหมด
-function listDatesWithAbsences() {
+// วันที่ยังมีข้อมูลขาดค้างอยู่ (อย่างน้อย 1 คน) ไว้โชว์ให้เลือกใน /ยกเลิกขาดทั้งหมด ระบุ checkKey ด้วยถ้าจะกรองเฉพาะรอบนั้น
+function listDatesWithAbsences(checkKey = null) {
   const all = storage.load('attendance', {});
   const dates = new Set();
   for (const months of Object.values(all)) {
     for (const record of Object.values(months)) {
-      for (const a of record.absences || []) dates.add(a.date);
+      for (const a of record.absences || []) {
+        if (!checkKey || a.checkKey === checkKey) dates.add(a.date);
+      }
     }
   }
   return [...dates].sort((a, b) => b.localeCompare(a));

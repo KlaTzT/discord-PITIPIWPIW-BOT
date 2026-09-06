@@ -13,5 +13,6 @@ module.exports = [
   require('./testStart'),
   require('./testEnd'),
   require('./checkNow'),
+  require('./moveMember'),
   require('./syncBindings'),
 ];

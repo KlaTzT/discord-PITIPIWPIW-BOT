@@ -61,6 +61,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
     if (interaction.isButton()) {
       if (await leavePanel.handleButton(interaction)) return;
+      if (await absencePanel.handleButton(interaction)) return;
     }
     if (interaction.isStringSelectMenu()) {
       if (await leavePanel.handleSelect(interaction)) return;
