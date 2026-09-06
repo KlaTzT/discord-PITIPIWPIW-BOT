@@ -1,0 +1,140 @@
+require('dotenv').config();
+
+const TIMEZONE = 'Asia/Bangkok';
+
+const FIELD_MAIN = '1542147777046384741'; // สนามตี้หลัก
+const FIELD_SUB = '1537713291231498261'; // สนามรอง
+const TALK_MAIN = '1537674250620764204'; // พูดคุยหลัก
+const TALK_CRAZY = '1543892475758911508'; // พูดคุยประสาท
+
+const WAR_DAYS = [2, 4]; // อังคาร, พฤหัสบดี (ใช้กับการเช็คห้องซ้อมเท่านั้น)
+const LEAVE_DAYS = [2, 4, 0]; // ลำดับที่โชว์ในปุ่มลา: อังคาร, พฤหัสบดี, อาทิตย์
+
+// เก็บแค่ตารางเวลา/ห้อง/เกณฑ์ของแต่ละ session ดิบๆ ส่วนจะเขียนชีตที่ไหนยังไงกำหนดที่ CHECKS แทน
+const SESSIONS = [
+  {
+    key: 'practice_main',
+    label: 'วอร์ปาร์ตี้หลัก',
+    days: WAR_DAYS,
+    startTime: '20:00',
+    endTime: '22:25',
+    channelIds: [FIELD_MAIN],
+    minMinutes: 30, // ต่ำกว่านี้ = ไฮไลท์เหลืองในชีต
+    sheetTab: 'วอร์ปาร์ตี้หลัก',
+  },
+  {
+    key: 'practice_sub',
+    label: 'วอร์ปาร์ตี้รอง',
+    days: WAR_DAYS,
+    startTime: '20:00',
+    endTime: '22:25',
+    channelIds: [FIELD_SUB],
+    minMinutes: 30,
+    sheetTab: 'วอร์ปาร์ตี้รอง',
+  },
+  {
+    key: 'thu_talk',
+    label: 'กิจกรรมกิลด์',
+    days: [4],
+    startTime: '21:00',
+    endTime: '21:45',
+    channelIds: [TALK_MAIN],
+    minMinutes: 30,
+    sheetTab: 'กิจกรรมกิลด์',
+  },
+  {
+    key: 'sun_talk',
+    label: 'ตีบอสกิลด์',
+    days: [0],
+    startTime: '18:00',
+    endTime: '20:00',
+    channelIds: [TALK_MAIN],
+    minMinutes: 30,
+    sheetTab: 'ตีบอสกิลด์',
+  },
+  {
+    key: 'sun_crazy',
+    label: 'วอร์วันอาทิตย์',
+    days: [0],
+    startTime: '20:01',
+    endTime: '22:00',
+    channelIds: [TALK_CRAZY],
+    graceMinutes: 5,
+    sheetTab: 'วอร์วันอาทิตย์',
+  },
+];
+
+for (const s of SESSIONS) {
+  const [sh, sm] = s.startTime.split(':').map(Number);
+  const [eh, em] = s.endTime.split(':').map(Number);
+  s.windowMinutes = (eh * 60 + em) - (sh * 60 + sm);
+  if (s.minMinutes === undefined) {
+    s.minMinutes = s.windowMinutes - (s.graceMinutes || 0);
+  }
+}
+
+// รวมสนามหลัก+รองเป็น "วอร์" เดียวต่อวัน (เข้าห้องไหนครบเกณฑ์ก็นับว่ามา) ใช้ตอนเช็ค/แจ้ง DM/สรุปชีต
+// เขียนชีตแยกแท็บตามห้อง (วอร์ปาร์ตี้หลัก/รอง) ตามที่ระบุใน SESSIONS[x].sheetTab
+// เช็คอื่นๆ ทุกตัวเป็น session เดี่ยว เขียนชีตของตัวเองตรงๆ ไม่มีการรวม/พักผลข้ามช่วงเวลาแล้ว
+// countsTowardWar: มีผลกับคอลัมน์ "มาวอร์"/"ขาด (รอบ)" ในแท็บสรุป (กิจกรรมกิลด์/ตีบอสกิลด์ ไม่นับเป็นวอร์)
+const CHECKS = [
+  { key: 'war', label: 'วอร์', sessionKeys: ['practice_main', 'practice_sub'], countsTowardWar: true },
+  { key: 'thu_guild', label: 'กิจกรรมกิลด์', sessionKeys: ['thu_talk'], countsTowardWar: false },
+  { key: 'sun_boss', label: 'ตีบอสกิลด์', sessionKeys: ['sun_talk'], countsTowardWar: false },
+  { key: 'sun_war', label: 'วอร์วันอาทิตย์', sessionKeys: ['sun_crazy'], countsTowardWar: true },
+];
+
+// session ในกลุ่มเดียวกันมีตารางตรงกันเสมอ (ยกเว้น war ที่ 2 session เวลาเดียวกันอยู่แล้ว) ใช้ตัวแรกเป็นตารางของ check
+for (const c of CHECKS) {
+  const s = SESSIONS.find((s) => s.key === c.sessionKeys[0]);
+  c.days = s.days;
+  c.startTime = s.startTime;
+  c.endTime = s.endTime;
+}
+
+// ใช้กับปุ่มทดสอบเท่านั้น (ให้เลือกตามวันจริงที่คนคุ้นเคย) วันพฤหัส/อาทิตย์มี 2 check ต้องทดสอบพร้อมกัน
+const TEST_DAYS = [
+  { key: 'tuesday', label: 'วันอังคาร (วอร์)', checkKeys: ['war'] },
+  { key: 'thursday', label: 'วันพฤหัสบดี (วอร์ + กิจกรรมกิลด์)', checkKeys: ['war', 'thu_guild'] },
+  { key: 'sunday', label: 'วันอาทิตย์ (ตีบอสกิลด์ + วอร์วันอาทิตย์)', checkKeys: ['sun_boss', 'sun_war'] },
+];
+
+const LEAVE_RULES = {
+  MAX_LEAVES_PER_MONTH: 3,
+  LATE_CUTOFF_HOUR: 15,
+  WARNINGS_TO_RED_CARD: 2,
+};
+
+const ABSENCE_WARNING_THRESHOLD = 3; // ขาด (ไม่แจ้งลา) รวมทุกการเช็ค ครบเท่านี้ครั้ง/เดือน -> ใบเตือนอัตโนมัติ
+
+const ATTENDANCE_REPORT_USER_ID = '974333079747436595'; // ส่ง DM สรุปมา/ลา/ขาด ให้คนนี้
+
+const SHEET_TABS = {
+  LEAVE_LOG: 'แจ้งลา',
+  WARNING_LOG: 'ใบเตือน',
+  BINDINGS: 'ผูกID',
+  SUMMARY: 'สรุป',
+};
+
+module.exports = {
+  TIMEZONE,
+  FIELD_MAIN,
+  FIELD_SUB,
+  TALK_MAIN,
+  TALK_CRAZY,
+  WAR_DAYS,
+  LEAVE_DAYS,
+  SESSIONS,
+  CHECKS,
+  TEST_DAYS,
+  SHEET_TABS,
+  LEAVE_RULES,
+  ABSENCE_WARNING_THRESHOLD,
+  ATTENDANCE_REPORT_USER_ID,
+  DISCORD_TOKEN: process.env.DISCORD_TOKEN,
+  CLIENT_ID: process.env.CLIENT_ID,
+  GUILD_ID: process.env.GUILD_ID,
+  LEAVE_CHANNEL_ID: process.env.LEAVE_CHANNEL_ID,
+  GOOGLE_SHEET_ID: process.env.GOOGLE_SHEET_ID,
+  GOOGLE_SERVICE_ACCOUNT_FILE: process.env.GOOGLE_SERVICE_ACCOUNT_FILE || './credentials/service-account.json',
+};
