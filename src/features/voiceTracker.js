@@ -96,6 +96,11 @@ function startSession(sessionKey, guild) {
   saveAll(all);
 }
 
+function getSessionState(sessionKey) {
+  const all = storage.load('liveSessions', {});
+  return all[sessionKey] || null;
+}
+
 async function resolveTag(guild, userId) {
   const cached = guild.members.cache.get(userId);
   if (cached) return cached.user.tag;
@@ -171,6 +176,7 @@ module.exports = {
   registerVoiceEvents,
   startSession,
   endSession,
+  getSessionState,
   buildPracticeRow,
   warmMemberCache,
   resolveTag,

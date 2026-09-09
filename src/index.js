@@ -31,6 +31,8 @@ client.once(Events.ClientReady, async () => {
     await voiceTracker.warmMemberCache(guild);
     console.log(`โหลดรายชื่อสมาชิกล่วงหน้าแล้ว (${guild.members.cache.size} คน)`);
   }
+
+  scheduleChecker.startReconcileLoop(client);
 });
 
 async function replyError(interaction, err, label) {
