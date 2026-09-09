@@ -21,7 +21,7 @@ module.exports = {
       return interaction.reply({ content: `ไม่พบชื่อ **${name}** ในระบบผูก ID`, ephemeral: true });
     }
 
+    await interaction.reply({ content: `ลบการผูกชื่อ **${name}** เรียบร้อยครับ`, ephemeral: true });
     await bindings.removeFromSheet(name);
-    return interaction.reply({ content: `ลบการผูกชื่อ **${name}** เรียบร้อยครับ`, ephemeral: true });
   },
 };

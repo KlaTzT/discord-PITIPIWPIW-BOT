@@ -43,6 +43,12 @@ module.exports = {
         ? leaveManager.giveManualRedCard(targetUser.id, monthKey)
         : leaveManager.addManualWarning(targetUser.id, monthKey);
 
+    const extra = type !== 'redcard' && result.newlyRedCarded ? ' (สะสมครบจนได้ใบแดงด้วย 🔴)' : '';
+    await interaction.reply({
+      content: `ให้${type === 'redcard' ? 'ใบแดง 🔴' : 'ใบเตือน 🟡'} **${gameName}** (${targetUser.tag}) แล้วครับ เหตุผล: ${reason}${extra}`,
+      ephemeral: true,
+    });
+
     try {
       await sheets.appendRow(SHEET_TABS.WARNING_LOG, WARNING_LOG_HEADER, [
         targetUser.tag,
@@ -55,11 +61,5 @@ module.exports = {
     }
 
     await attendanceTracker.upsertSummaryRow(targetUser.id, monthKey, interaction.guild);
-
-    const extra = type !== 'redcard' && result.newlyRedCarded ? ' (สะสมครบจนได้ใบแดงด้วย 🔴)' : '';
-    return interaction.reply({
-      content: `ให้${type === 'redcard' ? 'ใบแดง 🔴' : 'ใบเตือน 🟡'} **${gameName}** (${targetUser.tag}) แล้วครับ เหตุผล: ${reason}${extra}`,
-      ephemeral: true,
-    });
   },
 };

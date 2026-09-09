@@ -25,7 +25,6 @@ module.exports = {
 
     const monthKey = time.monthKey();
     const result = leaveManager.clearManualCards(targetUser.id, monthKey);
-    await attendanceTracker.upsertSummaryRow(targetUser.id, monthKey, interaction.guild);
 
     const status = result.redCard
       ? '🔴 ยังมีใบแดงอยู่ (มาจากลา/ขาดเกินเกณฑ์ ไม่ใช่ที่ให้ด้วยมือ)'
@@ -33,9 +32,11 @@ module.exports = {
         ? `🟡 ยังมีใบเตือน ${result.warnings} ใบอยู่ (มาจากระบบอัตโนมัติ)`
         : '🟢 ปกติ';
 
-    return interaction.reply({
+    await interaction.reply({
       content: `ล้างใบที่เคยให้ด้วยมือของ **${gameName}** (${targetUser.tag}) เดือนนี้แล้วครับ สถานะตอนนี้: ${status}`,
       ephemeral: true,
     });
+
+    await attendanceTracker.upsertSummaryRow(targetUser.id, monthKey, interaction.guild);
   },
 };

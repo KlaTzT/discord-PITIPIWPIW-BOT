@@ -36,12 +36,20 @@ client.once(Events.ClientReady, async () => {
 async function replyError(interaction, err, label) {
   console.error(`[${label}]`, err);
   const payload = { content: 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง', ephemeral: true };
-  if (interaction.replied || interaction.deferred) {
-    await interaction.followUp(payload);
-  } else {
-    await interaction.reply(payload);
+  try {
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(payload);
+    } else {
+      await interaction.reply(payload);
+    }
+  } catch (replyErr) {
+    // interaction หมดอายุไปแล้ว (เกิน 3 วิ) ตอบซ้ำไม่ได้ แค่จดไว้ ห้ามปล่อยให้ throw ต่อจนบอทตาย
+    console.error(`[${label}] ตอบ error กลับไม่สำเร็จ:`, replyErr.message);
   }
 }
+
+// กัน error ที่ discord.js โยนแบบไม่มีใครจับ (unhandled) ทำให้ทั้งโปรเซสตายไปด้วย
+client.on('error', (err) => console.error('[client] เกิดข้อผิดพลาดที่ client:', err.message));
 
 client.on(Events.MessageCreate, async (message) => {
   try {

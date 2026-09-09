@@ -12,8 +12,9 @@ module.exports = {
     const result = bindings.bind(interaction.user.id, name);
 
     if (result.ok) {
+      await interaction.reply({ content: `ผูกชื่อ **${name}** กับบัญชีนี้เรียบร้อยครับ`, ephemeral: true });
       await bindings.syncToSheet(interaction.user.tag, name);
-      return interaction.reply({ content: `ผูกชื่อ **${name}** กับบัญชีนี้เรียบร้อยครับ`, ephemeral: true });
+      return;
     }
     if (result.reason === 'USER_ALREADY_BOUND') {
       return interaction.reply({

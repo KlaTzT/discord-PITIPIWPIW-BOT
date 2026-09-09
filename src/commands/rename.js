@@ -17,11 +17,12 @@ module.exports = {
     const result = bindings.rename(oldUser.id, oldName, newName);
 
     if (result.ok) {
-      await bindings.syncToSheet(oldUser.tag, newName, oldName);
-      return interaction.reply({
+      await interaction.reply({
         content: `เปลี่ยนชื่อ **${oldName}** (${oldUser.tag}) เป็น **${newName}** เรียบร้อยครับ`,
         ephemeral: true,
       });
+      await bindings.syncToSheet(oldUser.tag, newName, oldName);
+      return;
     }
     if (result.reason === 'NOT_MATCHED') {
       return interaction.reply({

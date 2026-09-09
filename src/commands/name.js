@@ -23,11 +23,10 @@ module.exports = {
       return interaction.reply({ content: `ชื่อ **${newName}** ถูกผูกกับบัญชีอื่นไปแล้ว`, ephemeral: true });
     }
 
-    await bindings.syncToSheet(targetUser.tag, newName, result.oldName);
-
     const content = result.oldName
       ? `เปลี่ยนชื่อ ${targetUser.tag} จาก **${result.oldName}** เป็น **${newName}** เรียบร้อยครับ`
       : `ตั้งชื่อ ${targetUser.tag} เป็น **${newName}** เรียบร้อยครับ`;
-    return interaction.reply({ content, ephemeral: true });
+    await interaction.reply({ content, ephemeral: true });
+    await bindings.syncToSheet(targetUser.tag, newName, result.oldName);
   },
 };
