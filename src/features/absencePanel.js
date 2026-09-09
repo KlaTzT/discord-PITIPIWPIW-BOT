@@ -38,6 +38,55 @@ async function startCancelOne(interaction, targetUser) {
   });
 }
 
+// [แอดมิน] ยกเลิกตรงๆ โดยระบุประเภท+วันที่มาเองผ่านคำสั่ง (ทางลัด ไม่ต้องกดปุ่ม/เมนู)
+async function cancelOneDirect(interaction, targetUser, checkKey, dateKey) {
+  const boundName = bindings.getNameByUserId(targetUser.id);
+  const check = CHECKS.find((c) => c.key === checkKey);
+  if (!boundName) {
+    await interaction.reply({ content: `${targetUser.tag} ยังไม่ได้ผูกชื่อเกม`, ephemeral: true });
+    return;
+  }
+
+  const found = attendanceTracker.getAbsences(targetUser.id).find((a) => a.checkKey === checkKey && a.date === dateKey);
+  if (!found) {
+    await interaction.reply({
+      content: `ไม่พบข้อมูลขาด **${check.label}** วันที่ ${time.formatThaiDate(dateKey)} ของ **${boundName}** ครับ`,
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const result = attendanceTracker.cancelAbsence(targetUser.id, found.monthKey, found.index);
+  const extra = result.warningRevoked ? ' (คืนใบเตือนที่ได้จากขาดครบโควตาให้ด้วย)' : '';
+  await interaction.reply({
+    content: `ยกเลิกขาด **${check.label}** วันที่ ${time.formatThaiDate(dateKey)} ของ **${boundName}** แล้วครับ${extra}`,
+    ephemeral: true,
+  });
+  await attendanceTracker.upsertSummaryRow(targetUser.id, found.monthKey, interaction.guild);
+}
+
+// [แอดมิน] เหมือน cancelOneDirect แต่ยกเลิกให้ทุกคนในวันนั้น
+async function cancelAllDirect(interaction, checkKey, dateKey) {
+  const check = CHECKS.find((c) => c.key === checkKey);
+  await interaction.deferReply({ ephemeral: true });
+
+  const results = attendanceTracker.cancelAllAbsencesForDate(dateKey, checkKey);
+  if (results.length === 0) {
+    await interaction.editReply(`ไม่พบข้อมูลขาด **${check.label}** วันที่ ${time.formatThaiDate(dateKey)} ที่ยกเลิกได้ครับ`);
+    return;
+  }
+
+  const revokedCount = results.filter((r) => r.warningRevoked).length;
+  const extra = revokedCount > 0 ? ` (คืนใบเตือนให้ ${revokedCount} คนด้วย)` : '';
+  await interaction.editReply(
+    `ยกเลิกขาด **${check.label}** วันที่ ${time.formatThaiDate(dateKey)} ให้ ${results.length} คนแล้วครับ${extra}`
+  );
+
+  for (const { userId, monthKey } of results) {
+    await attendanceTracker.upsertSummaryRow(userId, monthKey, interaction.guild);
+  }
+}
+
 async function handlePickOneCategory(interaction) {
   const [targetUserId, checkKey] = interaction.customId.slice(CANCEL_ONE_CATEGORY_PREFIX.length).split(':');
   const check = CHECKS.find((c) => c.key === checkKey);
@@ -168,4 +217,4 @@ async function handleSelect(interaction) {
   return false;
 }
 
-module.exports = { startCancelOne, startCancelAll, handleButton, handleSelect };
+module.exports = { startCancelOne, startCancelAll, cancelOneDirect, cancelAllDirect, handleButton, handleSelect };

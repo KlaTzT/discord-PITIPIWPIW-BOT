@@ -84,6 +84,18 @@ function formatThaiDate(dateKeyStr) {
   return `${d}/${m}/${y}`;
 }
 
+// "22/09/2026" -> "2026-09-22" คืน undefined ถ้ารูปแบบผิดหรือวันที่ไม่มีจริง (เช่น 31/02)
+function parseThaiDate(str) {
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(str).trim());
+  if (!match) return undefined;
+  const d = Number(match[1]);
+  const m = Number(match[2]);
+  const y = Number(match[3]);
+  const check = new Date(Date.UTC(y, m - 1, d));
+  if (check.getUTCFullYear() !== y || check.getUTCMonth() !== m - 1 || check.getUTCDate() !== d) return undefined;
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
 function timeLabel(date = new Date()) {
   return new Intl.DateTimeFormat('th-TH', { timeZone: TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
 }
@@ -110,6 +122,7 @@ module.exports = {
   upcomingWeekdayDates,
   nextOccurrenceOf,
   formatThaiDate,
+  parseThaiDate,
   timeLabel,
   dateTimeLabel,
   TIMEZONE,
