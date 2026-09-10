@@ -180,7 +180,7 @@ async function recordCheck(check, dateStr, mergedResults, guild, client) {
       continue;
     }
 
-    if (leaveManager.hasApprovedLeaveFor(userId, dateStr)) {
+    if (leaveManager.hasApprovedLeaveFor(userId, dateStr, check.key)) {
       onLeaveNames.push(gameName);
       continue;
     }

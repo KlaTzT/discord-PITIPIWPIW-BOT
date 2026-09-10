@@ -103,6 +103,12 @@ const ABSENCE_WARNING_THRESHOLD = 3; // ขาด (ไม่แจ้งลา) 
 
 const ATTENDANCE_REPORT_USER_ID = '974333079747436595'; // ส่ง DM สรุปมา/ลา/ขาด ให้คนนี้
 
+// DM แจ้งเตือนก่อนวอร์ ทุกวันอังคาร/พฤหัสบดี/อาทิตย์ เวลา 12:00 หายศใดยศหนึ่งก็แจ้ง (มีทั้งคู่แจ้งรอบเดียว)
+const ROUND_NOTIFY_ROLE_IDS = ['1538604206540455987', '1538604405287420025'];
+const ROUND_NOTIFY_TEST_USER_ID = '974333079747436595';
+// true = กระจายจริงตามยศ, false (ตอนนี้) = ส่งให้ ROUND_NOTIFY_TEST_USER_ID คนเดียวก่อนเสมอ ไม่ว่าจะรอบจริงหรือ /เทสแจ้งเตือน
+const ROUND_NOTIFY_LIVE = false;
+
 const SHEET_TABS = {
   LEAVE_LOG: 'แจ้งลา',
   WARNING_LOG: 'ใบเตือน',
@@ -125,6 +131,9 @@ module.exports = {
   LEAVE_RULES,
   ABSENCE_WARNING_THRESHOLD,
   ATTENDANCE_REPORT_USER_ID,
+  ROUND_NOTIFY_ROLE_IDS,
+  ROUND_NOTIFY_TEST_USER_ID,
+  ROUND_NOTIFY_LIVE,
   DISCORD_TOKEN: process.env.DISCORD_TOKEN,
   CLIENT_ID: process.env.CLIENT_ID,
   GUILD_ID: process.env.GUILD_ID,

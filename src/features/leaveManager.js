@@ -14,8 +14,9 @@ function rawRecord(map, userId, mKey) {
   return map[userId][mKey];
 }
 
+// น้ำหนักของใบลาปกติคือ 1 เต็มวัน แต่ลาแค่บางรอบ (เช่น ลาแค่รอบ1 หรือลาแค่ตีมอน) นับแค่ 0.5
 function deriveStatus(raw) {
-  const count = raw.history.length;
+  const count = raw.history.reduce((sum, h) => sum + (h.weight ?? 1), 0);
   const lateCount = raw.history.filter((h) => h.late).length;
   const warnings = lateCount + (raw.absenceWarnings || 0) + (raw.manualWarnings || 0);
   const overQuota = count > LEAVE_RULES.MAX_LEAVES_PER_MONTH;
@@ -38,14 +39,17 @@ function canRequestLeave(userId, warDateKey) {
 }
 
 // โควตาถูกบล็อกที่ leavePanel.js ก่อนเรียกฟังก์ชันนี้แล้ว เช็ค overQuota ที่นี่ไว้เผื่อข้อมูลหลุดโควตามาเฉยๆ
-function recordLeave(userId, warDateKey, notifiedAt = new Date()) {
+// options: weight (ค่าเริ่มต้น 1 เต็มวัน, ใส่ 0.5 ถ้าลาแค่บางรอบ), label (ข้อความโชว์ในชีต/เมนูยกเลิก เช่น "รอบ1"),
+// exemptChecks (checkKey ที่ให้ถือว่าลาจริงตอนเช็คห้อง ไม่ใส่ = ลาเต็มวันแบบเดิม ยกเว้นทุกการเช็คของวันนั้น)
+function recordLeave(userId, warDateKey, notifiedAt = new Date(), options = {}) {
+  const { weight = 1, label, exemptChecks } = options;
   const map = all();
   const mKey = monthKeyOf(warDateKey);
   const raw = rawRecord(map, userId, mKey);
   const before = deriveStatus(raw);
 
   const late = notifiedAt.getTime() >= time.cutoffMomentMs(warDateKey, LEAVE_RULES.LATE_CUTOFF_HOUR);
-  raw.history.push({ warDate: warDateKey, notifiedAt: time.dateTimeLabel(notifiedAt), late });
+  raw.history.push({ warDate: warDateKey, notifiedAt: time.dateTimeLabel(notifiedAt), late, weight, label, exemptChecks });
   storage.save('leaves', map);
 
   const after = deriveStatus(raw);
@@ -70,7 +74,7 @@ function cancelLeave(userId, monthKey, historyIndex) {
 
   const [removed] = raw.history.splice(historyIndex, 1);
   storage.save('leaves', map);
-  return { ok: true, canceledDate: removed.warDate, status: deriveStatus(raw) };
+  return { ok: true, canceledDate: removed.warDate, canceledLabel: removed.label, status: deriveStatus(raw) };
 }
 
 // ใบลาที่ยังยกเลิกได้ (เฉพาะวันที่ยังไม่ถึง/ยังไม่ผ่านไป) ทุกเดือนที่มีข้อมูล
@@ -81,14 +85,18 @@ function getCancellableLeaves(userId) {
   const results = [];
   for (const [monthKey, raw] of Object.entries(userRecord)) {
     raw.history.forEach((h, index) => {
-      if (h.warDate >= todayKey) results.push({ monthKey, index, warDate: h.warDate });
+      if (h.warDate >= todayKey) results.push({ monthKey, index, warDate: h.warDate, label: h.label });
     });
   }
   return results.sort((a, b) => a.warDate.localeCompare(b.warDate));
 }
 
-function hasApprovedLeaveFor(userId, dateStr) {
-  return getStatus(userId, monthKeyOf(dateStr)).history.some((h) => h.warDate === dateStr);
+// checkKey ไม่ใส่ = เช็คแบบเดิม (มีใบลาวันนี้อยู่ไหม ไม่สนว่าลาส่วนไหน)
+// ใส่ checkKey = เช็คเจาะจงว่าลาที่เอ็กเซมชันรอบนี้จริงไหม (ใบเก่าที่ไม่มี exemptChecks ถือว่ายกเว้นทุกอย่างเหมือนเดิม)
+function hasApprovedLeaveFor(userId, dateStr, checkKey) {
+  return getStatus(userId, monthKeyOf(dateStr)).history.some(
+    (h) => h.warDate === dateStr && (!checkKey || !h.exemptChecks || h.exemptChecks.includes(checkKey))
+  );
 }
 
 // ใช้เหมือนกลไกใบเตือนจากการลาสาย แต่ทริกเกอร์จากขาดครบโควตาแทน (เก็บแยกจาก history เพราะไม่ใช่การลา)

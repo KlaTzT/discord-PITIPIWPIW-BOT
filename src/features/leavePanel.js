@@ -11,7 +11,7 @@ const bindings = require('./bindings');
 const leaveManager = require('./leaveManager');
 const attendanceTracker = require('./attendanceTracker');
 const sheets = require('../sheets');
-const { LEAVE_CHANNEL_ID, LEAVE_DAYS, LEAVE_RULES, SHEET_TABS } = require('../config');
+const { GUILD_ID, LEAVE_CHANNEL_ID, LEAVE_DAYS, LEAVE_RULES, SHEET_TABS } = require('../config');
 
 const OPEN_BUTTON_ID = 'leave:open';
 const PICK_BUTTON_PREFIX = 'leave:pickday:';
@@ -20,7 +20,7 @@ const CANCEL_SELECT_ID = 'leave:cancel:pick';
 const ADMIN_LEAVE_PREFIX = 'admin:leave:pick:';
 const ADMIN_CANCEL_PREFIX = 'admin:cancel:pick:';
 
-const LEAVE_LOG_HEADER = ['ตัวละคร', 'ลาวันวอร์วันที่', 'แจ้งเมื่อ'];
+const LEAVE_LOG_HEADER = ['ตัวละคร', 'ลาวันวอร์วันที่', 'แจ้งเมื่อ', 'ลาอะไร'];
 const WARNING_LOG_HEADER = ['Discord', 'ตัวละคร', 'เหตุ', 'ได้รับใบ'];
 
 const WEEKDAY_NAME = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
@@ -136,7 +136,7 @@ async function handleCancelOpenButton(interaction) {
     .setPlaceholder('เลือกวันที่จะยกเลิกลา')
     .addOptions(
       cancellable.map((c) => ({
-        label: time.formatThaiDate(c.warDate),
+        label: c.label ? `${time.formatThaiDate(c.warDate)} - ${c.label}` : time.formatThaiDate(c.warDate),
         value: `${c.monthKey}|${c.index}`,
       }))
     );
@@ -190,7 +190,7 @@ async function startAdminCancel(interaction, targetUser) {
     .setPlaceholder('เลือกวันที่จะยกเลิก')
     .addOptions(
       cancellable.map((c) => ({
-        label: time.formatThaiDate(c.warDate),
+        label: c.label ? `${time.formatThaiDate(c.warDate)} - ${c.label}` : time.formatThaiDate(c.warDate),
         value: `${c.monthKey}|${c.index}`,
       }))
     );
@@ -210,7 +210,10 @@ async function logWarning(discordTag, gameName, reason, cardType) {
   }
 }
 
-async function finalizeLeave(interaction, targetUserId, warDateKey, adminActor) {
+// opts.guild/opts.announceChannel ไว้ให้ตัวเรียกที่ไม่ได้มาจากห้องกิลด์ (เช่น DM) ส่ง guild จริง + ห้องประกาศมาแทนได้
+// opts.weight/label/exemptChecks ไว้สำหรับลาแค่บางรอบ (ไม่ใส่ = ลาเต็มวันแบบเดิมทุกอย่าง)
+async function finalizeLeave(interaction, targetUserId, warDateKey, adminActor, opts = {}) {
+  const { guild = interaction.guild, announceChannel = interaction.channel, weight = 1, label = '', exemptChecks } = opts;
   const boundName = bindings.getNameByUserId(targetUserId);
   if (!boundName) {
     await interaction.update({ content: 'บัญชีนี้ยังไม่ได้ผูกชื่อเกม', components: [] });
@@ -226,27 +229,28 @@ async function finalizeLeave(interaction, targetUserId, warDateKey, adminActor) 
   }
 
   const now = new Date();
-  const result = leaveManager.recordLeave(targetUserId, warDateKey, now);
+  const result = leaveManager.recordLeave(targetUserId, warDateKey, now, { weight, label, exemptChecks });
   const warDateDisplay = time.formatThaiDate(warDateKey);
+  const labelSuffix = label ? ` (${label})` : '';
 
   await interaction.update({
-    content: `บันทึกการลาวันวอร์ ${warDateDisplay} ${adminActor ? `ให้ ${boundName} ` : ''}เรียบร้อยครับ`,
+    content: `บันทึกการลาวันวอร์ ${warDateDisplay}${labelSuffix} ${adminActor ? `ให้ ${boundName} ` : ''}เรียบร้อยครับ`,
     components: [],
   });
 
   const statusLines = [
-    `<@${targetUserId}> **${boundName}** ขอลาวันวอร์ **${warDateDisplay}**${adminActor ? ` (แจ้งแทนโดย ${adminActor})` : ''}`,
+    `<@${targetUserId}> **${boundName}** ขอลาวันวอร์ **${warDateDisplay}**${labelSuffix}${adminActor ? ` (แจ้งแทนโดย ${adminActor})` : ''}`,
     `เดือนนี้ลาไปแล้ว ${result.count}/${LEAVE_RULES.MAX_LEAVES_PER_MONTH} ครั้ง (เหลือ ${result.remaining} ครั้ง)`,
     result.late ? 'แจ้งหลัง 15:00 ของวันวอร์นั้น ⚠️' : 'แจ้งก่อน 15:00 ของวันวอร์นั้น ✅',
   ];
   if (result.newWarning) statusLines.push(`ได้รับใบเตือน (สะสม ${result.warnings}/${LEAVE_RULES.WARNINGS_TO_RED_CARD} ใบ)`);
   if (result.newlyRedCarded) statusLines.push('🔴 ได้รับใบแดง');
 
-  await interaction.channel.send(statusLines.join('\n'));
+  if (announceChannel) await announceChannel.send(statusLines.join('\n'));
 
-  const discordTag = await resolveTag(interaction.guild, targetUserId);
+  const discordTag = await resolveTag(guild, targetUserId);
   try {
-    await sheets.appendRow(SHEET_TABS.LEAVE_LOG, LEAVE_LOG_HEADER, [boundName, warDateDisplay, time.dateTimeLabel(now)]);
+    await sheets.appendRow(SHEET_TABS.LEAVE_LOG, LEAVE_LOG_HEADER, [boundName, warDateDisplay, time.dateTimeLabel(now), label]);
   } catch (err) {
     console.error('[leavePanel] เขียนชีตแจ้งลาล้มเหลว:', err.message);
   }
@@ -258,10 +262,11 @@ async function finalizeLeave(interaction, targetUserId, warDateKey, adminActor) 
     await logWarning(discordTag, boundName, reason, 'ใบแดง');
   }
 
-  await attendanceTracker.upsertSummaryRow(targetUserId, result.monthKey, interaction.guild);
+  await attendanceTracker.upsertSummaryRow(targetUserId, result.monthKey, guild);
 }
 
-async function finalizeCancelLeave(interaction, targetUserId, monthKey, index, adminActor) {
+async function finalizeCancelLeave(interaction, targetUserId, monthKey, index, adminActor, opts = {}) {
+  const { guild = interaction.guild, announceChannel = interaction.channel } = opts;
   const boundName = bindings.getNameByUserId(targetUserId);
   if (!boundName) {
     await interaction.update({ content: 'บัญชีนี้ยังไม่ได้ผูกชื่อเกม', components: [] });
@@ -275,27 +280,43 @@ async function finalizeCancelLeave(interaction, targetUserId, monthKey, index, a
   }
 
   const dateDisplay = time.formatThaiDate(result.canceledDate);
+  const labelSuffix = result.canceledLabel ? ` (${result.canceledLabel})` : '';
   await interaction.update({
-    content: `ยกเลิกการลาวันวอร์ ${dateDisplay} ${adminActor ? `ของ ${boundName} ` : ''}เรียบร้อยครับ`,
+    content: `ยกเลิกการลาวันวอร์ ${dateDisplay}${labelSuffix} ${adminActor ? `ของ ${boundName} ` : ''}เรียบร้อยครับ`,
     components: [],
   });
 
-  await interaction.channel.send(
-    `<@${targetUserId}> **${boundName}** ยกเลิกการลาวันวอร์ **${dateDisplay}** แล้ว ❌${adminActor ? ` (ดำเนินการโดย ${adminActor})` : ''}`
-  );
+  if (announceChannel) {
+    await announceChannel.send(
+      `<@${targetUserId}> **${boundName}** ยกเลิกการลาวันวอร์ **${dateDisplay}**${labelSuffix} แล้ว ❌${adminActor ? ` (ดำเนินการโดย ${adminActor})` : ''}`
+    );
+  }
 
   try {
-    await sheets.deleteRowByKeys(SHEET_TABS.LEAVE_LOG, LEAVE_LOG_HEADER, [[0, boundName], [1, dateDisplay]]);
+    await sheets.deleteRowByKeys(SHEET_TABS.LEAVE_LOG, LEAVE_LOG_HEADER, [
+      [0, boundName],
+      [1, dateDisplay],
+      [3, result.canceledLabel || ''],
+    ]);
   } catch (err) {
     console.error('[leavePanel] ลบแถวแจ้งลาล้มเหลว:', err.message);
   }
 
-  await attendanceTracker.upsertSummaryRow(targetUserId, monthKey, interaction.guild);
+  await attendanceTracker.upsertSummaryRow(targetUserId, monthKey, guild);
+}
+
+// ถ้ากดมาจาก DM (ไม่มี interaction.guild) ต้องหา guild จริง + ห้องแจ้งลาจริงมาแทน guild/channel ของ DM เอง
+async function resolveAnnounceContext(interaction) {
+  if (interaction.guild) return {};
+  const guild = interaction.client.guilds.cache.get(GUILD_ID);
+  const announceChannel = guild ? await interaction.client.channels.fetch(LEAVE_CHANNEL_ID).catch(() => null) : null;
+  return { guild, announceChannel };
 }
 
 async function handlePickCancel(interaction) {
   const [monthKey, indexStr] = interaction.values[0].split('|');
-  await finalizeCancelLeave(interaction, interaction.user.id, monthKey, Number(indexStr));
+  const opts = await resolveAnnounceContext(interaction);
+  await finalizeCancelLeave(interaction, interaction.user.id, monthKey, Number(indexStr), undefined, opts);
 }
 
 async function handleMessage(message) {
@@ -348,6 +369,10 @@ module.exports = {
   handleMessage,
   startAdminLeave,
   startAdminCancel,
+  finalizeLeave,
+  finalizeCancelLeave,
+  resolveAnnounceContext,
+  CANCEL_BUTTON_ID,
   LEAVE_LOG_HEADER,
   WARNING_LOG_HEADER,
 };

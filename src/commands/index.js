@@ -14,5 +14,6 @@ module.exports = [
   require('./testEnd'),
   require('./checkNow'),
   require('./moveMember'),
+  require('./testRoundNotify'),
   require('./syncBindings'),
 ];

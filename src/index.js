@@ -4,6 +4,7 @@ const voiceTracker = require('./features/voiceTracker');
 const scheduleChecker = require('./features/scheduleChecker');
 const leavePanel = require('./features/leavePanel');
 const absencePanel = require('./features/absencePanel');
+const dmNotify = require('./features/dmNotify');
 const sheetSetup = require('./features/sheetSetup');
 const { DISCORD_TOKEN, GUILD_ID } = require('./config');
 
@@ -33,6 +34,7 @@ client.once(Events.ClientReady, async () => {
   }
 
   scheduleChecker.startReconcileLoop(client);
+  dmNotify.setupSchedule(client);
 });
 
 async function replyError(interaction, err, label) {
@@ -72,6 +74,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isButton()) {
       if (await leavePanel.handleButton(interaction)) return;
       if (await absencePanel.handleButton(interaction)) return;
+      if (await dmNotify.handleButton(interaction)) return;
     }
     if (interaction.isStringSelectMenu()) {
       if (await leavePanel.handleSelect(interaction)) return;
