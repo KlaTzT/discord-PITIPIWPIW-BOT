@@ -212,8 +212,19 @@ async function logWarning(discordTag, gameName, reason, cardType) {
 
 // opts.guild/opts.announceChannel ไว้ให้ตัวเรียกที่ไม่ได้มาจากห้องกิลด์ (เช่น DM) ส่ง guild จริง + ห้องประกาศมาแทนได้
 // opts.weight/label/exemptChecks ไว้สำหรับลาแค่บางรอบ (ไม่ใส่ = ลาเต็มวันแบบเดิมทุกอย่าง)
+function cancelOnlyRow() {
+  return [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(CANCEL_BUTTON_ID).setLabel('ยกเลิกลา').setStyle(ButtonStyle.Secondary))];
+}
+
 async function finalizeLeave(interaction, targetUserId, warDateKey, adminActor, opts = {}) {
-  const { guild = interaction.guild, announceChannel = interaction.channel, weight = 1, label = '', exemptChecks } = opts;
+  const {
+    guild = interaction.guild,
+    announceChannel = interaction.channel,
+    weight = 1,
+    label = '',
+    exemptChecks,
+    successComponents = [],
+  } = opts;
   const boundName = bindings.getNameByUserId(targetUserId);
   if (!boundName) {
     await interaction.update({ content: 'บัญชีนี้ยังไม่ได้ผูกชื่อเกม', components: [] });
@@ -235,7 +246,7 @@ async function finalizeLeave(interaction, targetUserId, warDateKey, adminActor, 
 
   await interaction.update({
     content: `บันทึกการลาวันวอร์ ${warDateDisplay}${labelSuffix} ${adminActor ? `ให้ ${boundName} ` : ''}เรียบร้อยครับ`,
-    components: [],
+    components: successComponents,
   });
 
   const statusLines = [
@@ -266,7 +277,7 @@ async function finalizeLeave(interaction, targetUserId, warDateKey, adminActor, 
 }
 
 async function finalizeCancelLeave(interaction, targetUserId, monthKey, index, adminActor, opts = {}) {
-  const { guild = interaction.guild, announceChannel = interaction.channel } = opts;
+  const { guild = interaction.guild, announceChannel = interaction.channel, successComponents = [] } = opts;
   const boundName = bindings.getNameByUserId(targetUserId);
   if (!boundName) {
     await interaction.update({ content: 'บัญชีนี้ยังไม่ได้ผูกชื่อเกม', components: [] });
@@ -283,7 +294,7 @@ async function finalizeCancelLeave(interaction, targetUserId, monthKey, index, a
   const labelSuffix = result.canceledLabel ? ` (${result.canceledLabel})` : '';
   await interaction.update({
     content: `ยกเลิกการลาวันวอร์ ${dateDisplay}${labelSuffix} ${adminActor ? `ของ ${boundName} ` : ''}เรียบร้อยครับ`,
-    components: [],
+    components: successComponents,
   });
 
   if (announceChannel) {
@@ -306,11 +317,12 @@ async function finalizeCancelLeave(interaction, targetUserId, monthKey, index, a
 }
 
 // ถ้ากดมาจาก DM (ไม่มี interaction.guild) ต้องหา guild จริง + ห้องแจ้งลาจริงมาแทน guild/channel ของ DM เอง
+// ใน DM ไม่มี panel หลักให้กดยกเลิกทีหลังได้เหมือนในห้อง เลยฝากปุ่มยกเลิกลาไว้ในข้อความเดิมต่อด้วย
 async function resolveAnnounceContext(interaction) {
   if (interaction.guild) return {};
   const guild = interaction.client.guilds.cache.get(GUILD_ID);
   const announceChannel = guild ? await interaction.client.channels.fetch(LEAVE_CHANNEL_ID).catch(() => null) : null;
-  return { guild, announceChannel };
+  return { guild, announceChannel, successComponents: cancelOnlyRow() };
 }
 
 async function handlePickCancel(interaction) {
@@ -372,6 +384,7 @@ module.exports = {
   finalizeLeave,
   finalizeCancelLeave,
   resolveAnnounceContext,
+  cancelOnlyRow,
   CANCEL_BUTTON_ID,
   LEAVE_LOG_HEADER,
   WARNING_LOG_HEADER,

@@ -4,14 +4,7 @@ const bindings = require('./bindings');
 const leaveManager = require('./leaveManager');
 const leavePanel = require('./leavePanel');
 const time = require('../time');
-const {
-  GUILD_ID,
-  LEAVE_CHANNEL_ID,
-  TIMEZONE,
-  ROUND_NOTIFY_ROLE_IDS,
-  ROUND_NOTIFY_TEST_USER_ID,
-  ROUND_NOTIFY_LIVE,
-} = require('../config');
+const { GUILD_ID, TIMEZONE, ROUND_NOTIFY_ROLE_IDS, ROUND_NOTIFY_TEST_USER_ID, ROUND_NOTIFY_LIVE } = require('../config');
 
 const PREFIX = 'round:';
 
@@ -119,7 +112,10 @@ async function handleButton(interaction) {
   if (!btn) return true;
 
   if (btn.leaveLabel === undefined) {
-    await interaction.update({ content: `✅ รับทราบ — ${btn.label} วันที่ ${time.formatThaiDate(dateKey)} ครับ`, components: [] });
+    await interaction.update({
+      content: `✅ รับทราบ — ${btn.label} วันที่ ${time.formatThaiDate(dateKey)} ครับ`,
+      components: leavePanel.cancelOnlyRow(),
+    });
     return true;
   }
 
@@ -131,17 +127,14 @@ async function handleButton(interaction) {
   if (alreadyDeclared(interaction.user.id, dateKey, btn.leaveLabel)) {
     await interaction.update({
       content: `แจ้งลา${btn.leaveLabel ? ' ' + btn.leaveLabel : ''} วันที่ ${time.formatThaiDate(dateKey)} ไปแล้วครับ`,
-      components: [],
+      components: leavePanel.cancelOnlyRow(),
     });
     return true;
   }
 
-  const guild = interaction.client.guilds.cache.get(GUILD_ID);
-  const announceChannel = guild ? await interaction.client.channels.fetch(LEAVE_CHANNEL_ID).catch(() => null) : null;
-
+  const ctx = await leavePanel.resolveAnnounceContext(interaction);
   await leavePanel.finalizeLeave(interaction, interaction.user.id, dateKey, undefined, {
-    guild,
-    announceChannel,
+    ...ctx,
     weight: btn.weight,
     label: btn.leaveLabel,
     exemptChecks: btn.exemptChecks,
