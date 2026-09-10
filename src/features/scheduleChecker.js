@@ -89,6 +89,11 @@ async function alertRecovery(client, message) {
   }
 }
 
+// กันชนกับ cron เริ่ม/จบตัวจริงที่ตรงกับเวลานาทีคู่พอดี (เช่น 20:00, 21:00) reconcile รันทุก 2 นาที
+// เลยมีจังหวะไปชนกันได้ ถ้าเผลอไปเช็คแทรกก่อน cron ตัวจริงจะเข้าใจผิดว่าพลาดทั้งที่จริงกำลังจะเริ่ม/จบพอดี
+// เผื่อเวลาไว้ 90 วิให้ cron ตัวจริงได้ทำงานก่อนเสมอ ค่อยถือว่า "พลาดจริง"
+const RECONCILE_GRACE_SEC = 90;
+
 // เช็คทุกรอบว่า "ตอนนี้ควรอยู่ในช่วงเช็คของวันนี้ไหม" เทียบกับสถานะจริงที่เก็บไว้
 // พลาดจังหวะเริ่ม (บอทเพิ่งมาออนไลน์กลางช่วง) -> เริ่มให้ตอนนี้เลย นับจากตอนที่รู้ตัวเท่านั้น (ไม่ย้อนไปตั้งแต่เวลาเริ่มจริง กันนับเวลาที่ไม่มีใครเห็นจริงๆ)
 // พลาดจังหวะจบ (ยัง active ค้างทั้งที่เลยเวลาไปแล้ว) -> ปิดรอบให้ตอนนี้เลย กันข้อมูลค้างจนถูกรอบถัดไปทับหาย
@@ -101,10 +106,13 @@ async function reconcile(client) {
   const nowSec = p.hour * 3600 + p.minute * 60 + p.second;
 
   for (const check of CHECKS) {
-    const inWindowToday =
-      check.days.includes(p.weekday) && nowSec >= toSeconds(check.startTime) && nowSec < toSeconds(check.endTime);
+    const startSec = toSeconds(check.startTime);
+    const endSec = toSeconds(check.endTime);
+    const inWindowToday = check.days.includes(p.weekday) && nowSec >= startSec && nowSec < endSec;
 
     if (inWindowToday) {
+      if (nowSec < startSec + RECONCILE_GRACE_SEC) continue; // เพิ่งเข้าช่วง ให้เวลา cron ตัวจริงทำงานก่อน
+
       const missed = check.sessionKeys.filter((sk) => {
         const st = voiceTracker.getSessionState(sk);
         return !st || !st.active || st.date !== todayKey;
@@ -121,6 +129,9 @@ async function reconcile(client) {
       );
       continue;
     }
+
+    const justEnded = check.days.includes(p.weekday) && nowSec >= endSec && nowSec < endSec + RECONCILE_GRACE_SEC;
+    if (justEnded) continue; // เพิ่งพ้นช่วงไปหมาดๆ ให้เวลา cron ตัวจริงปิดรอบก่อน
 
     const stuck = check.sessionKeys.some((sk) => voiceTracker.getSessionState(sk)?.active);
     if (stuck) {
