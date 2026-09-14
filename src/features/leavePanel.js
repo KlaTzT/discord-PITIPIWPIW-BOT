@@ -213,7 +213,11 @@ async function logWarning(discordTag, gameName, reason, cardType) {
 // opts.guild/opts.announceChannel ไว้ให้ตัวเรียกที่ไม่ได้มาจากห้องกิลด์ (เช่น DM) ส่ง guild จริง + ห้องประกาศมาแทนได้
 // opts.weight/label/exemptChecks ไว้สำหรับลาแค่บางรอบ (ไม่ใส่ = ลาเต็มวันแบบเดิมทุกอย่าง)
 function cancelOnlyRow() {
-  return [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(CANCEL_BUTTON_ID).setLabel('ยกเลิกลา').setStyle(ButtonStyle.Secondary))];
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(CANCEL_BUTTON_ID).setLabel('ยกเลิกลา').setEmoji('↩️').setStyle(ButtonStyle.Secondary)
+    ),
+  ];
 }
 
 async function finalizeLeave(interaction, targetUserId, warDateKey, adminActor, opts = {}) {
