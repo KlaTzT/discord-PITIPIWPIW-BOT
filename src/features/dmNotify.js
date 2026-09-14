@@ -8,15 +8,13 @@ const { GUILD_ID, TIMEZONE, ROUND_NOTIFY_ROLE_IDS, ROUND_NOTIFY_TEST_USER_ID, RO
 
 const PREFIX = 'round:';
 
-// ทุกวันเหลือแค่ปุ่มเดียวต่อสถานะ (ไม่แยก "พร้อม" กับ "ลา" อีก) เพราะพร้อมแค่รอบเดียวก็แปลว่าลาอีกรอบอยู่แล้วในตัว
-// สีเรียบๆ ไม่ไฮไลต์ทุกปุ่ม: ฟ้า = ตัวเลือกหลัก (มาเต็ม), แดง = ลา, เทา = ตัวเลือกรองอื่นๆ
-// leaveLabel/exemptChecks ไม่ใส่ = ไม่มีผลอะไรกับโควตา (มาเต็มวัน แค่รับทราบ)
+// ไม่มีปุ่ม "มา" แล้ว เพราะกดไปก็ไม่มีผลอะไรกับระบบ (มาจริงดูจากเข้าห้องเสียงอยู่แล้ว) เหลือแค่ปุ่มที่มีผลจริงคือลา
+// leaveLabel/exemptChecks ไม่ใส่ = ไม่มีผลอะไรกับโควตา
 const DAY_CONFIGS = {
   tuesday: {
     weekday: 2,
     title: 'แจ้งเตือนวอร์วันอังคาร',
     buttons: [
-      { id: 'both', label: 'มาทั้ง2รอบ', style: 'Primary' },
       { id: 'r1_only', label: 'มาวอร์รอบ1', style: 'Secondary', weight: 0.5, leaveLabel: 'รอบ2', exemptChecks: [] },
       { id: 'r2_only', label: 'มาวอร์รอบ2', style: 'Secondary', weight: 0.5, leaveLabel: 'รอบ1', exemptChecks: [] },
       { id: 'leave_both', label: 'ลาทั้งสองรอบ', style: 'Danger', weight: 1, leaveLabel: 'ทั้ง2รอบ', exemptChecks: ['war'] },
@@ -25,16 +23,12 @@ const DAY_CONFIGS = {
   thursday: {
     weekday: 4,
     title: 'แจ้งเตือนวอร์วันพฤหัสบดี',
-    buttons: [
-      { id: 'ready', label: 'มาวอร์', style: 'Primary' },
-      { id: 'leave', label: 'ลา', style: 'Danger', weight: 1, leaveLabel: '', exemptChecks: ['war'] },
-    ],
+    buttons: [{ id: 'leave', label: 'ลา', style: 'Danger', weight: 1, leaveLabel: '', exemptChecks: ['war'] }],
   },
   sunday: {
     weekday: 0,
     title: 'แจ้งเตือนวันอาทิตย์',
     buttons: [
-      { id: 'both', label: 'มาทั้ง2รอบ', style: 'Primary' },
       {
         id: 'r1_only',
         label: 'มาแค่บอสกิลด์',
@@ -103,7 +97,7 @@ async function sendRoundNotifications(client, dayKind) {
   const dateKey = time.nextOccurrenceOf(day.weekday).dateKey;
   const embed = new EmbedBuilder()
     .setTitle(day.title)
-    .setDescription(`วันที่ ${time.formatThaiDate(dateKey)} — เลือกปุ่มที่ตรงกับที่คุณจะมาได้เลยครับ (เลือกได้ปุ่มเดียว)`)
+    .setDescription(`วันที่ ${time.formatThaiDate(dateKey)} — ถ้าจะลาให้กดปุ่มด้านล่างเลยครับ ไม่ต้องกดอะไรถ้ามาปกติ`)
     .setColor(0x5865f2);
   const components = buildComponents(dayKind, dateKey);
 
@@ -134,14 +128,6 @@ async function handleButton(interaction) {
   const day = DAY_CONFIGS[dayKind];
   const btn = day && day.buttons.find((b) => b.id === btnId);
   if (!btn) return true;
-
-  if (btn.leaveLabel === undefined) {
-    await interaction.update({
-      content: `✅ รับทราบ — ${btn.label} วันที่ ${time.formatThaiDate(dateKey)} ครับ`,
-      components: leavePanel.cancelOnlyRow(),
-    });
-    return true;
-  }
 
   const boundName = bindings.getNameByUserId(interaction.user.id);
   if (!boundName) {
