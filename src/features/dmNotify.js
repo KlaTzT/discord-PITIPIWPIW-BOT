@@ -17,9 +17,9 @@ const DAY_CONFIGS = {
     title: 'แจ้งเตือนวอร์วันอังคาร',
     buttons: [
       { id: 'both', label: 'มาทั้ง2รอบ', emoji: '✅', style: 'Primary' },
-      { id: 'r1_only', label: 'มาแค่รอบ1', emoji: '1️⃣', style: 'Success', weight: 0.5, leaveLabel: 'รอบ2', exemptChecks: [] },
-      { id: 'r2_only', label: 'มาแค่รอบ2', emoji: '2️⃣', style: 'Success', weight: 0.5, leaveLabel: 'รอบ1', exemptChecks: [] },
-      { id: 'leave_both', label: 'ลาทั้งวัน', emoji: '❌', style: 'Danger', weight: 1, leaveLabel: 'ทั้ง2รอบ', exemptChecks: ['war'] },
+      { id: 'r1_only', label: 'มาวอร์รอบ1', emoji: '1️⃣', style: 'Success', weight: 0.5, leaveLabel: 'รอบ2', exemptChecks: [] },
+      { id: 'r2_only', label: 'มาวอร์รอบ2', emoji: '2️⃣', style: 'Success', weight: 0.5, leaveLabel: 'รอบ1', exemptChecks: [] },
+      { id: 'leave_both', label: 'ลาทั้งสองรอบ', emoji: '❌', style: 'Danger', weight: 1, leaveLabel: 'ทั้ง2รอบ', exemptChecks: ['war'] },
     ],
   },
   thursday: {
@@ -55,7 +55,7 @@ const DAY_CONFIGS = {
       },
       {
         id: 'leave_both',
-        label: 'ลาทั้งวัน',
+        label: 'ลาสองรอบ',
         emoji: '❌',
         style: 'Danger',
         weight: 1,
