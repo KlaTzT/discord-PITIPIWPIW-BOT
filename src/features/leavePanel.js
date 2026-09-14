@@ -215,7 +215,7 @@ async function logWarning(discordTag, gameName, reason, cardType) {
 function cancelOnlyRow() {
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(CANCEL_BUTTON_ID).setLabel('ยกเลิกลา').setEmoji('↩️').setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId(CANCEL_BUTTON_ID).setLabel('ยกเลิกลา').setStyle(ButtonStyle.Secondary)
     ),
   ];
 }
@@ -296,9 +296,10 @@ async function finalizeCancelLeave(interaction, targetUserId, monthKey, index, a
 
   const dateDisplay = time.formatThaiDate(result.canceledDate);
   const labelSuffix = result.canceledLabel ? ` (${result.canceledLabel})` : '';
+  const finalComponents = typeof successComponents === 'function' ? successComponents(result) : successComponents;
   await interaction.update({
     content: `ยกเลิกการลาวันวอร์ ${dateDisplay}${labelSuffix} ${adminActor ? `ของ ${boundName} ` : ''}เรียบร้อยครับ`,
-    components: successComponents,
+    components: finalComponents,
   });
 
   if (announceChannel) {
@@ -390,6 +391,7 @@ module.exports = {
   resolveAnnounceContext,
   cancelOnlyRow,
   CANCEL_BUTTON_ID,
+  CANCEL_SELECT_ID,
   LEAVE_LOG_HEADER,
   WARNING_LOG_HEADER,
 };

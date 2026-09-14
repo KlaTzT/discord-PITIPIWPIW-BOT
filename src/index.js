@@ -77,6 +77,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (await dmNotify.handleButton(interaction)) return;
     }
     if (interaction.isStringSelectMenu()) {
+      if (await dmNotify.handleSelect(interaction)) return;
       if (await leavePanel.handleSelect(interaction)) return;
       if (await absencePanel.handleSelect(interaction)) return;
     }

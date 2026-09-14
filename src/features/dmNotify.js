@@ -9,37 +9,36 @@ const { GUILD_ID, TIMEZONE, ROUND_NOTIFY_ROLE_IDS, ROUND_NOTIFY_TEST_USER_ID, RO
 const PREFIX = 'round:';
 
 // ทุกวันเหลือแค่ปุ่มเดียวต่อสถานะ (ไม่แยก "พร้อม" กับ "ลา" อีก) เพราะพร้อมแค่รอบเดียวก็แปลว่าลาอีกรอบอยู่แล้วในตัว
-// สี: ฟ้า = มาเต็ม, เขียว = มาบางส่วน, แดง = ลาเต็ม, เทา = ปุ่มจัดการอื่นๆ (ให้แยกหมวดง่ายแค่มองสี)
+// สีเรียบๆ ไม่ไฮไลต์ทุกปุ่ม: ฟ้า = ตัวเลือกหลัก (มาเต็ม), แดง = ลา, เทา = ตัวเลือกรองอื่นๆ
 // leaveLabel/exemptChecks ไม่ใส่ = ไม่มีผลอะไรกับโควตา (มาเต็มวัน แค่รับทราบ)
 const DAY_CONFIGS = {
   tuesday: {
     weekday: 2,
     title: 'แจ้งเตือนวอร์วันอังคาร',
     buttons: [
-      { id: 'both', label: 'มาทั้ง2รอบ', emoji: '✅', style: 'Primary' },
-      { id: 'r1_only', label: 'มาวอร์รอบ1', emoji: '1️⃣', style: 'Success', weight: 0.5, leaveLabel: 'รอบ2', exemptChecks: [] },
-      { id: 'r2_only', label: 'มาวอร์รอบ2', emoji: '2️⃣', style: 'Success', weight: 0.5, leaveLabel: 'รอบ1', exemptChecks: [] },
-      { id: 'leave_both', label: 'ลาทั้งสองรอบ', emoji: '❌', style: 'Danger', weight: 1, leaveLabel: 'ทั้ง2รอบ', exemptChecks: ['war'] },
+      { id: 'both', label: 'มาทั้ง2รอบ', style: 'Primary' },
+      { id: 'r1_only', label: 'มาวอร์รอบ1', style: 'Secondary', weight: 0.5, leaveLabel: 'รอบ2', exemptChecks: [] },
+      { id: 'r2_only', label: 'มาวอร์รอบ2', style: 'Secondary', weight: 0.5, leaveLabel: 'รอบ1', exemptChecks: [] },
+      { id: 'leave_both', label: 'ลาทั้งสองรอบ', style: 'Danger', weight: 1, leaveLabel: 'ทั้ง2รอบ', exemptChecks: ['war'] },
     ],
   },
   thursday: {
     weekday: 4,
     title: 'แจ้งเตือนวอร์วันพฤหัสบดี',
     buttons: [
-      { id: 'ready', label: 'มาวอร์', emoji: '✅', style: 'Primary' },
-      { id: 'leave', label: 'ลา', emoji: '❌', style: 'Danger', weight: 1, leaveLabel: '', exemptChecks: ['war'] },
+      { id: 'ready', label: 'มาวอร์', style: 'Primary' },
+      { id: 'leave', label: 'ลา', style: 'Danger', weight: 1, leaveLabel: '', exemptChecks: ['war'] },
     ],
   },
   sunday: {
     weekday: 0,
     title: 'แจ้งเตือนวันอาทิตย์',
     buttons: [
-      { id: 'both', label: 'มาทั้ง2รอบ', emoji: '✅', style: 'Primary' },
+      { id: 'both', label: 'มาทั้ง2รอบ', style: 'Primary' },
       {
         id: 'r1_only',
         label: 'มาแค่บอสกิลด์',
-        emoji: '🐉',
-        style: 'Success',
+        style: 'Secondary',
         weight: 0.5,
         leaveLabel: 'รอบ2 ตีปราสาท',
         exemptChecks: ['sun_war'],
@@ -47,8 +46,7 @@ const DAY_CONFIGS = {
       {
         id: 'r2_only',
         label: 'มาแค่ตีปราสาท',
-        emoji: '🏰',
-        style: 'Success',
+        style: 'Secondary',
         weight: 0.5,
         leaveLabel: 'รอบ1 บอสกิลด์',
         exemptChecks: ['sun_boss'],
@@ -56,7 +54,6 @@ const DAY_CONFIGS = {
       {
         id: 'leave_both',
         label: 'ลาสองรอบ',
-        emoji: '❌',
         style: 'Danger',
         weight: 1,
         leaveLabel: 'ทั้ง2รอบ',
@@ -65,6 +62,12 @@ const DAY_CONFIGS = {
     ],
   },
 };
+
+function dayKindForDate(dateKey) {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return { 2: 'tuesday', 4: 'thursday', 0: 'sunday' }[weekday];
+}
 
 function chunk(arr, size) {
   const rows = [];
@@ -75,15 +78,9 @@ function chunk(arr, size) {
 function buildComponents(dayKind, dateKey) {
   const day = DAY_CONFIGS[dayKind];
   const buttons = day.buttons.map((b) =>
-    new ButtonBuilder()
-      .setCustomId(`${PREFIX}${dayKind}:${b.id}:${dateKey}`)
-      .setLabel(b.label)
-      .setEmoji(b.emoji)
-      .setStyle(ButtonStyle[b.style])
+    new ButtonBuilder().setCustomId(`${PREFIX}${dayKind}:${b.id}:${dateKey}`).setLabel(b.label).setStyle(ButtonStyle[b.style])
   );
-  buttons.push(
-    new ButtonBuilder().setCustomId(leavePanel.CANCEL_BUTTON_ID).setLabel('ยกเลิกลา').setEmoji('↩️').setStyle(ButtonStyle.Secondary)
-  );
+  buttons.push(new ButtonBuilder().setCustomId(leavePanel.CANCEL_BUTTON_ID).setLabel('ยกเลิกลา').setStyle(ButtonStyle.Secondary));
   return chunk(buttons, 5).map((row) => new ActionRowBuilder().addComponents(row));
 }
 
@@ -169,6 +166,22 @@ async function handleButton(interaction) {
   return true;
 }
 
+// ยกเลิกลาจาก DM แจ้งเตือนรอบนี้ -> คืนปุ่มของวันนั้นทั้งชุดกลับมาให้เลือกใหม่ได้เลย (ไม่ใช่เหลือแค่ปุ่มยกเลิกลาเฉยๆ)
+async function handleSelect(interaction) {
+  if (interaction.customId !== leavePanel.CANCEL_SELECT_ID || interaction.guild) return false;
+
+  const [monthKey, indexStr] = interaction.values[0].split('|');
+  const ctx = await leavePanel.resolveAnnounceContext(interaction);
+  await leavePanel.finalizeCancelLeave(interaction, interaction.user.id, monthKey, Number(indexStr), undefined, {
+    ...ctx,
+    successComponents: (result) => {
+      const dayKind = dayKindForDate(result.canceledDate);
+      return dayKind ? buildComponents(dayKind, result.canceledDate) : leavePanel.cancelOnlyRow();
+    },
+  });
+  return true;
+}
+
 function setupSchedule(client) {
   cron.schedule(
     '0 12 * * 0,2,4',
@@ -182,4 +195,4 @@ function setupSchedule(client) {
   );
 }
 
-module.exports = { setupSchedule, sendRoundNotifications, handleButton, DAY_CONFIGS };
+module.exports = { setupSchedule, sendRoundNotifications, handleButton, handleSelect, DAY_CONFIGS };
