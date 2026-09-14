@@ -69,12 +69,12 @@ function chunk(arr, size) {
   return rows;
 }
 
+// ไม่มีปุ่มยกเลิกลาตอนเริ่ม (ยังไม่มีอะไรให้ยกเลิก) จะโผล่มาก็ต่อเมื่อกดลาไปแล้วเท่านั้น (ดู finalizeLeave/resolveAnnounceContext)
 function buildComponents(dayKind, dateKey) {
   const day = DAY_CONFIGS[dayKind];
   const buttons = day.buttons.map((b) =>
     new ButtonBuilder().setCustomId(`${PREFIX}${dayKind}:${b.id}:${dateKey}`).setLabel(b.label).setStyle(ButtonStyle[b.style])
   );
-  buttons.push(new ButtonBuilder().setCustomId(leavePanel.CANCEL_BUTTON_ID).setLabel('ยกเลิกลา').setStyle(ButtonStyle.Secondary));
   return chunk(buttons, 5).map((row) => new ActionRowBuilder().addComponents(row));
 }
 
