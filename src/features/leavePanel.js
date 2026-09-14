@@ -117,17 +117,22 @@ async function handleOpenButton(interaction) {
   });
 }
 
+// ในห้องกิลด์ ปุ่มนี้อยู่บน panel ถาวร ต้องส่งเป็นข้อความใหม่ (reply) ห้ามแก้ทับ panel เดิม
+// ใน DM แต่ละข้อความเป็นของคนนั้นคนเดียว ไม่มี panel ให้รักษาไว้ เลยแก้ข้อความเดิมในตัวได้เลย (update)
 async function handleCancelOpenButton(interaction) {
+  const inGuild = Boolean(interaction.guild);
+  const respond = (payload) => (inGuild ? interaction.reply({ ...payload, ephemeral: true }) : interaction.update(payload));
+
   const userId = interaction.user.id;
   const boundName = bindings.getNameByUserId(userId);
   if (!boundName) {
-    await interaction.reply({ content: 'บัญชีนี้ยังไม่ได้ผูกชื่อเกม ใช้คำสั่ง /ผูก ก่อนครับ', ephemeral: true });
+    await respond({ content: 'บัญชีนี้ยังไม่ได้ผูกชื่อเกม ใช้คำสั่ง /ผูก ก่อนครับ', components: [] });
     return;
   }
 
   const cancellable = leaveManager.getCancellableLeaves(userId);
   if (cancellable.length === 0) {
-    await interaction.reply({ content: 'ไม่มีใบลาที่ยกเลิกได้ครับ (ต้องเป็นวันที่ยังไม่ถึงเท่านั้น)', ephemeral: true });
+    await respond({ content: 'ไม่มีใบลาที่ยกเลิกได้ครับ (ต้องเป็นวันที่ยังไม่ถึงเท่านั้น)', components: [] });
     return;
   }
 
@@ -141,10 +146,9 @@ async function handleCancelOpenButton(interaction) {
       }))
     );
 
-  await interaction.reply({
+  await respond({
     content: `ผูกชื่อ **${boundName}** — เลือกใบลาที่จะยกเลิก`,
     components: [new ActionRowBuilder().addComponents(menu)],
-    ephemeral: true,
   });
 }
 
