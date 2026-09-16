@@ -21,7 +21,17 @@ function deriveStatus(raw) {
   const warnings = lateCount + (raw.absenceWarnings || 0) + (raw.manualWarnings || 0);
   const overQuota = count > LEAVE_RULES.MAX_LEAVES_PER_MONTH;
   const redCard = overQuota || warnings >= LEAVE_RULES.WARNINGS_TO_RED_CARD || Boolean(raw.manualRedCard);
-  return { count, warnings, redCard, overQuota, history: raw.history };
+  return {
+    count,
+    warnings,
+    redCard,
+    overQuota,
+    history: raw.history,
+    lateCount,
+    absenceWarnings: raw.absenceWarnings || 0,
+    manualWarnings: raw.manualWarnings || 0,
+    manualRedCard: Boolean(raw.manualRedCard),
+  };
 }
 
 function getStatus(userId, monthKey) {

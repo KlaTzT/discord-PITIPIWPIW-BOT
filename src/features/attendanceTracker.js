@@ -63,6 +63,12 @@ async function upsertSummaryRow(userId, monthKey, guild) {
   }
 }
 
+// อ่านอย่างเดียว ไว้ให้ /สถานะ เช็คของตัวเอง (ไม่บันทึกอะไรเพิ่ม)
+function getMonthlyRecord(userId, monthKey) {
+  const all = storage.load('attendance', {});
+  return getRecord(all, userId, monthKey);
+}
+
 // รายการขาดทั้งหมดของคนคนนี้ (ทุกเดือนที่มีข้อมูล) เรียงวันที่ล่าสุดก่อน ไว้ให้แอดมินเลือกยกเลิก
 function getAbsences(userId) {
   const all = storage.load('attendance', {});
@@ -247,6 +253,7 @@ async function recordCheck(check, dateStr, mergedResults, guild, client) {
 module.exports = {
   recordCheck,
   upsertSummaryRow,
+  getMonthlyRecord,
   getAbsences,
   cancelAbsence,
   cancelAllAbsencesForDate,
